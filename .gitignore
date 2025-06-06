@@ -138,3 +138,8 @@ $RECYCLE.BIN/
 ./teste
 ./venv/
 ./env/
+tests/__pycache__/test_main.cpython-310-pytest-8.4.0.pyc
+tests/__pycache__/test_main.cpython-310-pytest-8.4.0.pyc
+tsbanking/__pycache__/main.cpython-310.pyc
+tsbanking/__pycache__/models.cpython-310.pyc
+tsbanking/__pycache__/services.cpython-310.pyc
