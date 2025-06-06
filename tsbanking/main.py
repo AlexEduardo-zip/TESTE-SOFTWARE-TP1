@@ -1,7 +1,14 @@
 from datetime import datetime, time
 from fastapi import FastAPI, HTTPException
-from tsbanking.models import Transacao, Transferencia, TipoTransferencia
-from tsbanking.services import depositar, sacar, consultar_saldo, consultar_extrato, limpar, transferir
+from tsbanking.models import (
+    Transacao, Transferencia, TipoTransferencia,
+    TipoInvestimento, InvestimentoAplicacao, InvestimentoResgate,
+    TipoCaixa, SaqueCaixa
+)
+from tsbanking.services import (
+    depositar, sacar, consultar_saldo, consultar_extrato, limpar, transferir,
+    aplicar_investimento, resgatar_investimento, saque_caixa
+)
 
 app = FastAPI()
 
@@ -93,3 +100,18 @@ def transferir(transfer: Transferencia):
         "valor": transfer.valor,
         "destino": transfer.conta_destino
     }
+
+
+@app.post("/investir")
+def investir(aplicacao: InvestimentoAplicacao):
+    return aplicar_investimento(aplicacao.valor, aplicacao.tipo_investimento)
+
+
+@app.post("/resgatar_investimento")
+def resgatar(resgate: InvestimentoResgate):
+    return resgatar_investimento(resgate.tipo_investimento)
+
+
+@app.post("/saque_caixa")
+def saque_em_caixa(saida: SaqueCaixa):
+    return saque_caixa(saida.valor, saida.tipo_caixa)
