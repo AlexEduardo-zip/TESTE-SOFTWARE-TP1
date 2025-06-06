@@ -2,6 +2,7 @@
 
 ## 1. Membros do Grupo
 Alex Eduardo Alves dos Santos; 
+
 Matheus Flávio Gonçalves Silva; 2020006850
 
 ## 2. Explicação do Sistema
