@@ -1,7 +1,10 @@
+from fastapi import HTTPException
 import pytest
 from datetime import datetime as real_datetime, datetime, timedelta
 from fastapi.testclient import TestClient
 from tsbanking.main import app
+from tsbanking.database import atualizar_saldo, limpar_extrato, get_saldo, get_extrato
+from tsbanking.services import transferir
 
 
 @pytest.fixture
@@ -254,13 +257,15 @@ def test_transferencia_saldo_insuficiente(client, monkeypatch):
 def test_investir_cdb_valido(client):
     # Deposita saldo suficiente
     client.post("/depositar", json={"valor": 1000})
-    response = client.post("/investir", json={"valor": 500, "tipo_investimento": "CDB"})
+    response = client.post(
+        "/investir", json={"valor": 500, "tipo_investimento": "CDB"})
     assert response.status_code == 200
     assert "Aplicado" in response.json().get("mensagem", "")
 
 
 def test_investir_saldo_insuficiente(client):
-    response = client.post("/investir", json={"valor": 999999, "tipo_investimento": "CDB"})
+    response = client.post(
+        "/investir", json={"valor": 999999, "tipo_investimento": "CDB"})
     assert response.status_code == 400
     assert "Saldo insuficiente" in response.json().get("detail", "")
 
@@ -274,7 +279,8 @@ def test_resgatar_cdb(client):
     client.post("/investir", json={"valor": 500, "tipo_investimento": "CDB"})
     from tsbanking.database import get_investimento
     get_investimento("CDB")["data_aplicacao"] = data_aplic.isoformat()
-    response = client.post("/resgatar_investimento", json={"tipo_investimento": "CDB"})
+    response = client.post("/resgatar_investimento",
+                           json={"tipo_investimento": "CDB"})
     assert response.status_code == 200
     assert "Resgatado" in response.json().get("mensagem", "")
     assert response.json()["juros"] > 0
@@ -285,7 +291,8 @@ def test_cdb_rendimento_30_dias(client):
     data_aplic = datetime(2024, 1, 1, 10, 0)
     data_resg = data_aplic + timedelta(days=30)
     # Aplica investimento com data específica
-    response = client.post("/investir", json={"valor": 500, "tipo_investimento": "CDB"})
+    response = client.post(
+        "/investir", json={"valor": 500, "tipo_investimento": "CDB"})
     assert response.status_code == 200
     # Força a data de aplicação
     from tsbanking.database import get_investimento
@@ -301,12 +308,14 @@ def test_poupanca_rendimento_10_dias(client):
     client.post("/depositar", json={"valor": 1000})
     data_aplic = datetime(2024, 1, 1, 10, 0)
     data_resg = data_aplic + timedelta(days=10)
-    response = client.post("/investir", json={"valor": 200, "tipo_investimento": "POUPANCA"})
+    response = client.post(
+        "/investir", json={"valor": 200, "tipo_investimento": "POUPANCA"})
     assert response.status_code == 200
     from tsbanking.database import get_investimento
     get_investimento("POUPANCA")["data_aplicacao"] = data_aplic.isoformat()
     from tsbanking.services import resgatar_investimento
-    result = resgatar_investimento("POUPANCA", data_resgate=data_resg.isoformat())
+    result = resgatar_investimento(
+        "POUPANCA", data_resgate=data_resg.isoformat())
     assert result["dias"] == 10
     assert result["juros"] > 0
 
@@ -315,12 +324,15 @@ def test_tesouro_rendimento_60_dias(client):
     client.post("/depositar", json={"valor": 1000})
     data_aplic = datetime(2024, 1, 1, 10, 0)
     data_resg = data_aplic + timedelta(days=60)
-    response = client.post("/investir", json={"valor": 300, "tipo_investimento": "TESOURO_DIRETO"})
+    response = client.post(
+        "/investir", json={"valor": 300, "tipo_investimento": "TESOURO_DIRETO"})
     assert response.status_code == 200
     from tsbanking.database import get_investimento
-    get_investimento("TESOURO_DIRETO")["data_aplicacao"] = data_aplic.isoformat()
+    get_investimento("TESOURO_DIRETO")[
+        "data_aplicacao"] = data_aplic.isoformat()
     from tsbanking.services import resgatar_investimento
-    result = resgatar_investimento("TESOURO_DIRETO", data_resgate=data_resg.isoformat())
+    result = resgatar_investimento(
+        "TESOURO_DIRETO", data_resgate=data_resg.isoformat())
     assert result["dias"] == 60
     assert result["juros"] > 0
 
@@ -329,7 +341,8 @@ def test_resgate_data_invalida(client):
     client.post("/depositar", json={"valor": 1000})
     data_aplic = datetime(2024, 1, 10, 10, 0)
     data_resg = datetime(2024, 1, 1, 10, 0)  # anterior à aplicação
-    response = client.post("/investir", json={"valor": 100, "tipo_investimento": "CDB"})
+    response = client.post(
+        "/investir", json={"valor": 100, "tipo_investimento": "CDB"})
     assert response.status_code == 200
     from tsbanking.database import get_investimento
     get_investimento("CDB")["data_aplicacao"] = data_aplic.isoformat()
@@ -346,28 +359,32 @@ def test_resgate_data_invalida(client):
 
 def test_saque_caixa_10_valido(client):
     client.post("/depositar", json={"valor": 100})
-    response = client.post("/saque_caixa", json={"valor": 40, "tipo_caixa": "CAIXA_10"})
+    response = client.post(
+        "/saque_caixa", json={"valor": 40, "tipo_caixa": "CAIXA_10"})
     assert response.status_code == 200
     assert "Saque de R$ 40.00 realizado no caixa 10" in response.json().get("mensagem", "")
 
 
 def test_saque_caixa_10_invalido(client):
     client.post("/depositar", json={"valor": 100})
-    response = client.post("/saque_caixa", json={"valor": 25, "tipo_caixa": "CAIXA_10"})
+    response = client.post(
+        "/saque_caixa", json={"valor": 25, "tipo_caixa": "CAIXA_10"})
     assert response.status_code == 400
     assert "múltiplo de 10" in response.json().get("detail", "")
 
 
 def test_saque_caixa_50_valido(client):
     client.post("/depositar", json={"valor": 200})
-    response = client.post("/saque_caixa", json={"valor": 150, "tipo_caixa": "CAIXA_50"})
+    response = client.post(
+        "/saque_caixa", json={"valor": 150, "tipo_caixa": "CAIXA_50"})
     assert response.status_code == 200
     assert "Saque de R$ 150.00 realizado no caixa 50" in response.json().get("mensagem", "")
 
 
 def test_saque_caixa_50_invalido(client):
     client.post("/depositar", json={"valor": 200})
-    response = client.post("/saque_caixa", json={"valor": 120, "tipo_caixa": "CAIXA_50"})
+    response = client.post(
+        "/saque_caixa", json={"valor": 120, "tipo_caixa": "CAIXA_50"})
     assert response.status_code == 400
     assert "múltiplo de 50" in response.json().get("detail", "")
 
@@ -375,7 +392,8 @@ def test_saque_caixa_50_invalido(client):
 # --- Testes adicionais de cobertura e comportamentos não permitidos ---
 def test_saque_caixa_tipo_invalido(client):
     client.post("/depositar", json={"valor": 100})
-    response = client.post("/saque_caixa", json={"valor": 50, "tipo_caixa": "CAIXA_X"})
+    response = client.post(
+        "/saque_caixa", json={"valor": 50, "tipo_caixa": "CAIXA_X"})
     assert response.status_code == 422
     assert (
         "Input should be" in response.text or
@@ -400,12 +418,14 @@ def test_transferencia_tipo_invalido(client):
 
 def test_investir_tipo_invalido(client):
     client.post("/depositar", json={"valor": 100})
-    response = client.post("/investir", json={"valor": 50, "tipo_investimento": "BITCOIN"})
+    response = client.post(
+        "/investir", json={"valor": 50, "tipo_investimento": "BITCOIN"})
     assert response.status_code == 422 or "tipo_investimento" in response.text
 
 
 def test_resgatar_sem_aplicacao(client):
-    response = client.post("/resgatar_investimento", json={"tipo_investimento": "POUPANCA"})
+    response = client.post("/resgatar_investimento",
+                           json={"tipo_investimento": "POUPANCA"})
     assert response.status_code == 400
     assert "Nenhum valor aplicado" in response.json().get("detail", "")
 
@@ -451,7 +471,92 @@ def test_saque_caixa_saldo_insuficiente(client):
     client.post("/limpar")
     from tsbanking.database import atualizar_saldo
     atualizar_saldo(0, "principal")
-    response = client.post("/saque_caixa", json={"valor": 1000, "tipo_caixa": "CAIXA_100"})
+    response = client.post(
+        "/saque_caixa", json={"valor": 1000, "tipo_caixa": "CAIXA_100"})
     assert response.status_code == 400
     assert "Saldo insuficiente" in response.json().get("detail", "")
 
+# Testes de transferência entre contas
+
+
+@pytest.fixture(autouse=True)
+def reset_database():
+    """Reseta o banco de dados antes de cada teste"""
+    atualizar_saldo(1000.0, "principal")
+    atualizar_saldo(500.0, "destino")
+    limpar_extrato("principal")
+    limpar_extrato("destino")
+
+
+def test_transferencia_bem_sucedida():
+    # Testa transferência válida
+    resultado = transferir(300.0, "destino", "principal")
+
+    assert resultado["mensagem"] == "Transferido R$ 300.00 para destino"
+    assert get_saldo("principal") == 700.0  # 1000 - 300
+    assert get_saldo("destino") == 800.0    # 500 + 300
+
+    # Verifica os registros no extrato
+    extrato_origem = get_extrato("principal")
+    extrato_destino = get_extrato("destino")
+
+    assert extrato_origem[0]["op"] == "transferencia para destino"
+    assert extrato_origem[0]["valor"] == 300.0
+    assert extrato_destino[0]["op"] == "transferencia de principal"
+    assert extrato_destino[0]["valor"] == 300.0
+
+
+def test_transferencia_conta_origem_invalida():
+    # Testa conta de origem inválida
+    with pytest.raises(HTTPException) as excinfo:
+        transferir(100.0, "destino", "conta_inexistente")
+
+    assert excinfo.value.status_code == 404
+    assert "não encontrada" in excinfo.value.detail
+
+
+def test_transferencia_conta_destino_invalida():
+    # Testa conta de destino inválida
+    with pytest.raises(HTTPException) as excinfo:
+        transferir(100.0, "conta_inexistente", "principal")
+
+    assert excinfo.value.status_code == 404
+    assert "não encontrada" in excinfo.value.detail
+
+
+def test_transferencia_valor_negativo():
+    # Testa valor negativo
+    with pytest.raises(HTTPException) as excinfo:
+        transferir(-100.0, "destino", "principal")
+
+    assert excinfo.value.status_code == 400
+    assert "positivo" in excinfo.value.detail
+
+
+def test_transferencia_saldo_insuficiente():
+    # Testa saldo insuficiente
+    with pytest.raises(HTTPException) as excinfo:
+        transferir(1500.0, "destino", "principal")
+
+    assert excinfo.value.status_code == 400
+    assert "insuficiente" in excinfo.value.detail
+    assert get_saldo("principal") == 1000.0  # Saldo não deve mudar
+    assert get_saldo("destino") == 500.0     # Saldo não deve mudar
+
+
+def test_transferencia_entre_mesmas_contas():
+    # Testa transferência para a mesma conta
+    with pytest.raises(HTTPException) as excinfo:
+        transferir(100.0, "principal", "principal")
+
+    assert excinfo.value.status_code == 400
+    assert "mesma conta" in excinfo.value.detail
+
+
+def test_transferencia_valor_zero():
+    # Testa valor zero
+    with pytest.raises(HTTPException) as excinfo:
+        transferir(0.0, "destino", "principal")
+
+    assert excinfo.value.status_code == 400
+    assert "positivo" in excinfo.value.detail

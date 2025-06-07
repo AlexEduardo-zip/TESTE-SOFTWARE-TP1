@@ -65,6 +65,10 @@ def transferir(valor, conta_destino, conta_origem):
     validar_conta(conta_destino)
     validar_valor(valor)
 
+    if conta_origem == conta_destino:
+        raise HTTPException(
+            status_code=400, detail="Não é possível transferir para a mesma conta")
+
     origem_saldo = get_saldo(conta_origem)
     if valor > origem_saldo:
         raise HTTPException(
