@@ -3,3 +3,6 @@ pytest
 textual
 coverage
 pytest-cov
+httpx
+unicorn
+pydantic
