@@ -1,3 +1,4 @@
+from fastapi import HTTPException
 from textual.app import App, ComposeResult
 from textual.widgets import Header, Footer, Button, Label, Input, Static
 from textual.screen import Screen
@@ -95,22 +96,42 @@ class OperacaoScreen(Screen):
 
     def compose(self) -> ComposeResult:
         yield Label(f"{self.operacao.capitalize()}", classes="titulo")
-        yield Input(placeholder="Valor (R$)", id="valor")
+        yield Input(placeholder="Valor (R$)", id="valor", restrict=r"^[0-9]*\.?[0-9]*$")
         yield Button("Confirmar", id="confirmar")
         yield Button("Cancelar", id="cancelar")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "confirmar":
+            if (self.query_one("#valor", Input).value.strip() == ""):
+                self.notify("Por favor, informe um valor válido!",
+                            severity="error")
+                return
+            if (float(self.query_one("#valor", Input).value) <= 0):
+                self.notify("Valor deve ser maior que zero!", severity="error")
+                return
+
             valor = float(self.query_one("#valor", Input).value)
             if self.operacao == "deposito":
-                depositar(valor, self.conta)
-                self.notify(
-                    f"Depósito de R$ {valor:.2f} realizado!", severity="success")
+                try:
+                    depositar(valor, self.conta)
+                    self.notify(
+                        f"Depósito de R$ {valor:.2f} realizado!", severity="success")
+                    self.app.pop_screen()
+                except HTTPException as e:
+                    self.notify(f"Erro: {e.detail}", severity="error")
+                except Exception as e:
+                    self.notify(f"Erro inesperado: {str(e)}", severity="error")
             elif self.operacao == "saque":
-                sacar(valor, self.conta)
-                self.notify(
-                    f"Saque de R$ {valor:.2f} realizado!", severity="success")
-            self.app.pop_screen()
+                try:
+                    sacar(valor, self.conta)
+                    self.notify(
+                        f"Saque de R$ {valor:.2f} realizado!", severity="success")
+                    self.app.pop_screen()
+                except HTTPException as e:
+                    self.notify(f"Erro: {e.detail}", severity="error")
+                except Exception as e:
+                    self.notify(f"Erro inesperado: {str(e)}", severity="error")
+
         elif event.button.id == "cancelar":
             self.app.pop_screen()
 
@@ -123,18 +144,33 @@ class TransferenciaScreen(Screen):
     def compose(self) -> ComposeResult:
         yield Label("Transferência", classes="titulo")
         yield Input(placeholder="Conta Destino", id="destino")
-        yield Input(placeholder="Valor (R$)", id="valor")
+        yield Input(placeholder="Valor (R$)", id="valor", restrict=r"^[0-9]*\.?[0-9]*$")
         yield Button("Confirmar", id="confirmar")
         yield Button("Cancelar", id="cancelar")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
+
         if event.button.id == "confirmar":
-            destino = self.query_one("#destino", Input).value
-            valor = float(self.query_one("#valor", Input).value)
-            transferir(valor, destino)
-            self.notify(
-                f"Transferência de R$ {valor:.2f} para {destino}!", severity="success")
-            self.app.pop_screen()
+            if (self.query_one("#valor", Input).value.strip() == ""):
+                self.notify("Por favor, informe um valor válido!",
+                            severity="error")
+                return
+            if (float(self.query_one("#valor", Input).value) <= 0):
+                self.notify("Valor deve ser maior que zero!", severity="error")
+                return
+
+            try:
+                destino = self.query_one("#destino", Input).value
+                valor = float(self.query_one("#valor", Input).value)
+                transferir(valor, destino, self.conta)
+                self.notify(
+                    f"Transferência de R$ {valor:.2f} para {destino}!", severity="success")
+                self.app.pop_screen()
+            except HTTPException as e:
+                self.notify(f"Erro: {e.detail}", severity="error")
+            except Exception as e:
+                self.notify(f"Erro inesperado: {str(e)}", severity="error")
+
         elif event.button.id == "cancelar":
             self.app.pop_screen()
 
@@ -181,7 +217,7 @@ class AplicarInvestimentoScreen(Screen):
 
     def compose(self) -> ComposeResult:
         yield Label("Aplicar em Investimento", classes="titulo")
-        yield Input(placeholder="Valor (R$)", id="valor")
+        yield Input(placeholder="Valor (R$)", id="valor", restrict=r"^[0-9]*\.?[0-9]*$")
         yield Button("CDB (1.5%)", id="CDB")
         yield Button("Poupança (0.5%)", id="POUPANCA")
         yield Button("Tesouro Direto (1%)", id="TESOURO_DIRETO")
@@ -189,11 +225,26 @@ class AplicarInvestimentoScreen(Screen):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id in ["CDB", "POUPANCA", "TESOURO_DIRETO"]:
-            valor = float(self.query_one("#valor", Input).value)
-            aplicar_investimento(valor, event.button.id.lower(), self.conta)
-            self.notify(
-                f"Aplicado R$ {valor:.2f} em {event.button.id}!", severity="success")
-            self.app.pop_screen()
+            if (self.query_one("#valor", Input).value.strip() == ""):
+                self.notify("Por favor, informe um valor válido!",
+                            severity="error")
+                return
+            if (float(self.query_one("#valor", Input).value) <= 0):
+                self.notify("Valor deve ser maior que zero!", severity="error")
+                return
+
+            try:
+                valor = float(self.query_one("#valor", Input).value)
+                aplicar_investimento(
+                    valor, event.button.id.upper(), self.conta)
+                self.notify(
+                    f"Aplicado R$ {valor:.2f} em {event.button.id}!", severity="success")
+                self.app.pop_screen()
+            except HTTPException as e:
+                self.notify(f"Erro: {e.detail}", severity="error")
+            except Exception as e:
+                self.notify(f"Erro inesperado: {str(e)}", severity="error")
+
         elif event.button.id == "voltar":
             self.app.pop_screen()
 
@@ -212,10 +263,16 @@ class ResgatarInvestimentoScreen(Screen):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id in ["CDB", "POUPANCA", "TESOURO_DIRETO"]:
-            resgatar_investimento(event.button.id.lower(), self.conta)
-            self.notify(
-                f"Resgatado investimento em {event.button.id}!", severity="success")
-            self.app.pop_screen()
+            try:
+                resgatar_investimento(event.button.id.upper(), self.conta)
+                self.notify(
+                    f"Resgatado investimento em {event.button.id}!", severity="success")
+                self.app.pop_screen()
+            except HTTPException as e:
+                self.notify(f"Erro: {e.detail}", severity="error")
+            except Exception as e:
+                self.notify(f"Erro inesperado: {str(e)}", severity="error")
+
         elif event.button.id == "voltar":
             self.app.pop_screen()
 

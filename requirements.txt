@@ -1,8 +1,5 @@
 fastapi
-uvicorn
 pytest
-httpx
 textual
 coverage
 pytest-cov
-

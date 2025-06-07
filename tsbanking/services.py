@@ -60,19 +60,25 @@ def limpar(conta="principal"):
     return {"mensagem": "Extrato limpo"}
 
 
-def transferir(valor, conta_destino):
-    validar_conta("principal")
+def transferir(valor, conta_destino, conta_origem):
+    validar_conta(conta_origem)
     validar_conta(conta_destino)
     validar_valor(valor)
 
-    origem_saldo = get_saldo("principal")
+    origem_saldo = get_saldo(conta_origem)
     if valor > origem_saldo:
         raise HTTPException(
             status_code=400, detail="Saldo insuficiente para transferência")
 
     # Debita e credita
-    sacar(valor, "principal")
-    depositar(valor, conta_destino)
+    atualizar_saldo(origem_saldo - valor, conta_origem)
+    registrar_operacao(
+        f"transferencia para {conta_destino}", valor, conta_origem)
+
+    atualizar_saldo(consultar_saldo(conta_destino) + valor, conta_destino)
+    registrar_operacao(
+        f"transferencia de {conta_origem}", valor, conta_destino)
+
     return {"mensagem": f"Transferido R$ {valor:.2f} para {conta_destino}"}
 
 
@@ -81,7 +87,8 @@ def aplicar_investimento(valor, tipo, conta="principal", data_aplicacao=None):
     validar_valor(valor)
     saldo = get_saldo(conta)
     if valor > saldo:
-        raise HTTPException(status_code=400, detail="Saldo insuficiente para investir")
+        raise HTTPException(
+            status_code=400, detail="Saldo insuficiente para investir")
     atualizar_saldo(saldo - valor, conta)
     investimento = get_investimento(tipo)
     novo_valor = investimento["valor"] + valor
@@ -99,11 +106,13 @@ def resgatar_investimento(tipo, conta="principal", data_resgate=None):
     investimento = get_investimento(tipo)
     valor = investimento["valor"]
     if valor <= 0:
-        raise HTTPException(status_code=400, detail="Nenhum valor aplicado neste investimento")
+        raise HTTPException(
+            status_code=400, detail="Nenhum valor aplicado neste investimento")
     taxa = get_taxa_investimento(tipo)
     data_aplicacao = investimento.get("data_aplicacao")
     if not data_aplicacao:
-        raise HTTPException(status_code=400, detail="Data de aplicação não encontrada")
+        raise HTTPException(
+            status_code=400, detail="Data de aplicação não encontrada")
     if data_resgate is None:
         data_resgate = datetime.now().isoformat()
     # Calcula tempo em dias
@@ -111,7 +120,8 @@ def resgatar_investimento(tipo, conta="principal", data_resgate=None):
     dt_resg = datetime.fromisoformat(data_resgate)
     dias = (dt_resg - dt_aplic).days
     if dias < 0:
-        raise HTTPException(status_code=400, detail="Data de resgate anterior à aplicação")
+        raise HTTPException(
+            status_code=400, detail="Data de resgate anterior à aplicação")
     # Métricas de rendimento
     if tipo == "CDB":
         rendimento = valor * ((1 + taxa) ** dias - 1)
@@ -147,7 +157,8 @@ def saque_caixa(valor, tipo_caixa, conta="principal"):
     else:
         raise HTTPException(status_code=400, detail="Tipo de caixa inválido")
     if valor % multiplo != 0:
-        raise HTTPException(status_code=400, detail=f"Valor deve ser múltiplo de {multiplo} para este caixa")
+        raise HTTPException(
+            status_code=400, detail=f"Valor deve ser múltiplo de {multiplo} para este caixa")
     novo = saldo - valor
     atualizar_saldo(novo, conta)
     registrar_operacao(f"saque_caixa_{multiplo}", valor, conta)
